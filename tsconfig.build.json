@@ -1,0 +1,33 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Enable declaration file generation
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    
+    // Output settings
+    "outDir": "./dist",
+    "rootDir": "./src",
+    
+    // Module settings for library
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    
+    // Don't skip emit
+    "noEmit": false,
+    
+    // Skip type checking of declaration files from node_modules
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ]
+}
