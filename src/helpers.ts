@@ -1,21 +1,39 @@
+import debug from 'debug';
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { ETarget, type TAsset, type TRelease } from './types';
 
+const getGithubHeaders = (): Record<string, string> => {
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28'
+  };
+
+  if (process.env.GITHUB_TOKEN) {
+    headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
+  }
+
+  return headers;
+};
+
 const downloadAsset = async (asset: TAsset) => {
   let releaseJsonResponse: Response;
 
   if (process.env.GITHUB_TOKEN) {
+    debug('updater')(
+      `Fetching asset with github authentication... ${asset.name}`
+    );
+
     // it's a private repo: use API endpoint with authentication
     releaseJsonResponse = await fetch(asset.url, {
-      headers: {
-        Accept: 'application/octet-stream',
-        'X-GitHub-Api-Version': '2022-11-28',
-        Authorization: `Bearer ${process.env.GITHUB_TOKEN}`
-      }
+      headers: { ...getGithubHeaders(), Accept: 'application/octet-stream' }
     });
   } else {
+    debug('updater')(
+      `Fetching asset without github authentication... ${asset.name}`
+    );
+
     // it's a public repo: use browser download URL (no auth needed)
     releaseJsonResponse = await fetch(asset.browser_download_url);
   }
@@ -32,10 +50,13 @@ const downloadAsset = async (asset: TAsset) => {
 const downloadUpdater = async () => {
   const updaterOwner = 'diogomartino';
   const updaterRepo = 'bun-sfe-autoupdater';
+  const url = `https://api.github.com/repos/${updaterOwner}/${updaterRepo}/releases/latest`;
 
-  const response = await fetch(
-    `https://api.github.com/repos/${updaterOwner}/${updaterRepo}/releases/latest`
-  );
+  debug('updater')(`Fetching latest updater release info from ${url}`);
+
+  const response = await fetch(url, {
+    headers: getGithubHeaders()
+  });
 
   if (!response.ok) {
     throw new Error(
@@ -44,7 +65,12 @@ const downloadUpdater = async () => {
   }
 
   const release = (await response.json()) as TRelease;
+
+  debug('updater')(`Latest updater release version: ${release.tag_name}`);
+
   const currentArchitecture = getCurrentArchitecture();
+
+  debug('updater')(`Current architecture: ${currentArchitecture}`);
 
   const updaterAsset = release.assets.find((asset) =>
     asset.name.includes(currentArchitecture)
@@ -56,22 +82,38 @@ const downloadUpdater = async () => {
     );
   }
 
+  debug('updater')(`Found updater asset: ${updaterAsset.name}`);
+
   const assetResponse = await downloadAsset(updaterAsset);
   const tempUpdaterDir = path.join(os.tmpdir(), 'bun-sfe-autoupdater');
 
+  debug('updater')(`Using temporary updater directory: ${tempUpdaterDir}`);
+
   if (!(await fs.exists(tempUpdaterDir))) {
+    debug('updater')(`Creating temporary updater directory: ${tempUpdaterDir}`);
+
     await fs.mkdir(tempUpdaterDir, { recursive: true });
   }
 
   const updaterPath = path.join(tempUpdaterDir, updaterAsset.name);
 
+  debug('updater')(`Downloading updater to path: ${updaterPath}`);
+
   if (await fs.exists(updaterPath)) {
+    debug('updater')(`Removing existing updater at path: ${updaterPath}`);
+
     await fs.unlink(updaterPath);
   }
 
   const arrayBuffer = await assetResponse.arrayBuffer();
 
+  debug('updater')(`Writing updater binary to path: ${updaterPath}`);
   await fs.writeFile(updaterPath, new Uint8Array(arrayBuffer));
+
+  debug('updater')(
+    `Setting executable permissions for updater at path: ${updaterPath}`
+  );
+  await fs.chmod(updaterPath, 0o755);
 
   return updaterPath;
 };
@@ -89,4 +131,9 @@ const getCurrentArchitecture = (): ETarget => {
   throw new Error(`Unsupported platform or architecture: ${platform}-${arch}`);
 };
 
-export { downloadAsset, downloadUpdater, getCurrentArchitecture };
+export {
+  downloadAsset,
+  downloadUpdater,
+  getCurrentArchitecture,
+  getGithubHeaders
+};

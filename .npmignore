@@ -1,0 +1,34 @@
+# Source files (only ship dist)
+src/
+*.ts
+!*.d.ts
+
+# Config files
+tsconfig.json
+tsconfig.build.json
+.prettierrc
+.eslintrc*
+.editorconfig
+
+# Build artifacts
+build/
+
+# Development
+.vscode/
+.idea/
+*.log
+.DS_Store
+
+# Testing
+coverage/
+*.test.ts
+*.spec.ts
+
+# Environment
+.env
+.env.*
+
+# Locks (users should have their own)
+bun.lock
+package-lock.json
+yarn.lock

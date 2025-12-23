@@ -1,26 +1,24 @@
+import debug from 'debug';
 import semver from 'semver';
 import {
   downloadAsset,
   downloadUpdater,
-  getCurrentArchitecture
+  getCurrentArchitecture,
+  getGithubHeaders
 } from './helpers';
 import { zRelease, type TRelease, type TReleaseMetadata } from './types';
 
 const getLatestRelease = async (owner: string, repo: string) => {
-  const headers: Record<string, string> = {
-    Accept: 'application/vnd.github+json',
-    'X-GitHub-Api-Version': '2022-11-28'
-  };
+  const url = `https://api.github.com/repos/${owner}/${repo}/releases/latest`;
 
-  if (process.env.GITHUB_TOKEN) {
-    headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
-  }
+  debug('updater')(`Fetching latest release info... ${url}`);
 
-  const response = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/releases/latest`,
-    {
-      headers
-    }
+  const response = await fetch(url, {
+    headers: getGithubHeaders()
+  });
+
+  debug('updater')(
+    `Response status: ${response.status} ${response.statusText}`
   );
 
   if (!response.ok) {
@@ -31,6 +29,8 @@ const getLatestRelease = async (owner: string, repo: string) => {
 
   const release = (await response.json()) as TRelease;
 
+  debug('updater')(`Latest release version: ${release.tag_name}`);
+
   const releaseArtifact = release.assets.find(
     (asset) => asset.name === 'release.json'
   );
@@ -40,6 +40,8 @@ const getLatestRelease = async (owner: string, repo: string) => {
   }
 
   const releaseJsonResponse = await downloadAsset(releaseArtifact);
+
+  debug('updater')(`Downloaded release.json: ${releaseJsonResponse.url}`);
 
   const updaterMetadata: TReleaseMetadata = zRelease.parse(
     await releaseJsonResponse.json()
@@ -99,8 +101,6 @@ const checkForUpdates = async (owner: string, repo: string) => {
     );
   }
 
-  console.log({ targetArtifact, targetAsset });
-
   const updaterPath = await downloadUpdater();
 
   const args: Map<string, string> = new Map();
@@ -110,6 +110,7 @@ const checkForUpdates = async (owner: string, repo: string) => {
   args.set('GITHUB_TOKEN', process.env.GITHUB_TOKEN || '');
   args.set('CURRENT_BINARY_PATH', process.execPath);
   args.set('CURRENT_PID', process.pid.toString());
+  args.set('SHA256_CHECKSUM', targetArtifact.checksum);
 
   const arrayArgs = Array.from(args.entries()).map(
     ([key, value]) => `--${key}=${value}`
@@ -124,5 +125,5 @@ const checkForUpdates = async (owner: string, repo: string) => {
   await updaterProcess.exited;
 };
 
-export { checkForUpdates, getLatestVersion, hasUpdates };
 export type { TRelease, TReleaseMetadata } from './types';
+export { checkForUpdates, getLatestVersion, hasUpdates };

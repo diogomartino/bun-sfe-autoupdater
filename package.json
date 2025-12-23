@@ -34,7 +34,9 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@types/debug": "^4.1.12",
     "@types/semver": "^7.7.1",
+    "debug": "^4.4.3",
     "semver": "^7.7.3",
     "zod": "^4.2.1"
   }
