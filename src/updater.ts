@@ -43,6 +43,9 @@ if (!PUBLIC_URL && !PRIVATE_URL) {
   throw new Error('Either PUBLIC_URL or PRIVATE_URL must be provided.');
 }
 
+// this prevents running the updater accidentally from a script and not a standalone binary
+// if that would happen, the updater would try to replace the Bun binary itself
+// don't ask me how I know
 if (CURRENT_BINARY_PATH.includes('.bun/bin/')) {
   throw new Error(
     'Updater can only run on standalone Bun applications, not on "bun run" scripts.'
@@ -158,6 +161,10 @@ debug('updater')(
   `Downloading new binary to path: ${newBinaryPath} from URL: ${url}`
 );
 await downloadNewBinary(url, newBinaryPath);
+
+if (IGNORE_CHECKSUM) {
+  debug('updater')('Ignoring checksum verification');
+}
 
 // verifies the checksum if provided
 if (SHA256_CHECKSUM && !IGNORE_CHECKSUM) {

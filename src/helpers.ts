@@ -2,7 +2,9 @@ import debug from 'debug';
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
-import { ETarget, type TAsset, type TRelease } from './types';
+import semver from 'semver';
+import { fileURLToPath } from 'url';
+import { ETarget, zRelease, type TAsset, type TRelease } from './types';
 
 const getGithubHeaders = (): Record<string, string> => {
   const headers: Record<string, string> = {
@@ -47,10 +49,28 @@ const downloadAsset = async (asset: TAsset) => {
   return releaseJsonResponse;
 };
 
+const getLibVersion = async (): Promise<string> => {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+
+  const pkgPath = path.resolve(__dirname, '../package.json');
+  const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf-8'));
+
+  return pkg.version;
+};
+
 const downloadUpdater = async () => {
   const updaterOwner = 'diogomartino';
   const updaterRepo = 'bun-sfe-autoupdater';
-  const url = `https://api.github.com/repos/${updaterOwner}/${updaterRepo}/releases/latest`;
+  const targetVersion = await getLibVersion();
+
+  if (!semver.valid(targetVersion)) {
+    throw new Error(
+      `Invalid lib version: ${targetVersion}. Must be a valid semver string.`
+    );
+  }
+
+  const url = `https://api.github.com/repos/${updaterOwner}/${updaterRepo}/releases/tags/v${targetVersion}`;
 
   debug('updater')(`Fetching latest updater release info from ${url}`);
 
@@ -131,9 +151,14 @@ const getCurrentArchitecture = (): ETarget => {
   throw new Error(`Unsupported platform or architecture: ${platform}-${arch}`);
 };
 
+const validateReleaseMetadata = (releaseMetadata: any) =>
+  zRelease.parse(releaseMetadata);
+
 export {
   downloadAsset,
   downloadUpdater,
   getCurrentArchitecture,
-  getGithubHeaders
+  getGithubHeaders,
+  getLibVersion,
+  validateReleaseMetadata
 };

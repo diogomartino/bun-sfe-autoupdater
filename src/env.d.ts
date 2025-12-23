@@ -5,6 +5,7 @@ declare global {
     interface ProcessEnv {
       CURRENT_VERSION: string;
       GITHUB_TOKEN?: string;
+      BUILD_VERSION: string;
     }
   }
 }

@@ -25,7 +25,10 @@ type TArtifact = z.infer<typeof zArtifact>;
 type TReleaseMetadata = z.infer<typeof zRelease>;
 
 type TOptions = {
-  token: string;
+  repoOwner: string;
+  repoName: string;
+  channel?: string;
+  currentVersion?: string;
 };
 
 type TAsset = {
