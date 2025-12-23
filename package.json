@@ -1,6 +1,6 @@
 {
   "name": "bun-sfe-autoupdater",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Auto-updater library for Bun single file executables",
   "repository": "https://github.com/diogomartino/bun-sfe-autoupdater",
   "type": "module",
