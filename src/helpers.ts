@@ -60,8 +60,8 @@ const getLibVersion = async (): Promise<string> => {
 };
 
 const downloadUpdater = async () => {
-  const updaterOwner = 'diogomartino';
-  const updaterRepo = 'bun-sfe-autoupdater';
+  const updaterOwner = process.env.UPDATER_REPO_OWNER || 'diogomartino';
+  const updaterRepo = process.env.UPDATER_REPO_NAME || 'bun-sfe-autoupdater';
   const targetVersion = await getLibVersion();
 
   if (!semver.valid(targetVersion)) {

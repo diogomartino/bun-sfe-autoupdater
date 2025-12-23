@@ -24,8 +24,7 @@ class BunUpdater {
     this.owner = options.repoOwner;
     this.repo = options.repoName;
     this.channel = options.channel;
-    this.currentVersion =
-      options.currentVersion || process.env.CURRENT_VERSION || '0.0.0';
+    this.currentVersion = options.currentVersion || process.env.CURRENT_VERSION;
 
     debug('updater')(
       `Initialized BunUpdater for ${this.owner}/${this.repo} at version ${this.currentVersion}`

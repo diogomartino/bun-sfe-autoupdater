@@ -6,6 +6,8 @@ declare global {
       CURRENT_VERSION: string;
       GITHUB_TOKEN?: string;
       BUILD_VERSION: string;
+      UPDATER_REPO_OWNER?: string;
+      UPDATER_REPO_NAME?: string;
     }
   }
 }
