@@ -2,6 +2,7 @@
   "name": "bun-sfe-autoupdater",
   "version": "0.0.1",
   "description": "Auto-updater library for Bun single file executables",
+  "homepage": "https://github.com/diogomartino/bun-sfe-autoupdater",
   "repository": "https://github.com/diogomartino/bun-sfe-autoupdater",
   "type": "module",
   "main": "./dist/index.js",
