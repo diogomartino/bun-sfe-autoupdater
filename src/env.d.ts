@@ -10,6 +10,9 @@ declare global {
       UPDATER_REPO_NAME?: string;
     }
   }
+
+  // injected at build time via Bun.build's define option
+  const UPDATER_LIB_VERSION: string;
 }
 
 export {};
