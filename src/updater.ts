@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { parseArgs } from 'util';
 import z from 'zod';
+import { calculateSHA256 } from './sha256';
 
 const { values } = parseArgs({
   args: Bun.argv,
@@ -94,18 +95,6 @@ const waitForUnlock = async (file: string) => {
   }
 
   throw new Error(`File ${file} remained locked after timeout`);
-};
-
-const calculateSHA256 = async (filePath: string) => {
-  const fileBuffer = await fs.readFile(filePath);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', fileBuffer.buffer);
-
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-
-  return hashHex;
 };
 
 const downloadNewBinary = async (url: string, destPath: string) => {
