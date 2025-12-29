@@ -3,6 +3,9 @@
 Auto-updater library for Bun single file executables (SFE), designed to
 seamlessly update your standalone Bun applications from GitHub releases.
 
+> [!NOTE] This library is in alpha stage. Bugs, incomplete features and breaking
+> changes are to be expected.
+
 ## How It Works
 
 This library exposes the `BunUpdater` class, which you can instantiate with your
