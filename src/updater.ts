@@ -14,7 +14,8 @@ const { values } = parseArgs({
     GITHUB_TOKEN: { type: 'string' },
     CURRENT_BINARY_PATH: { type: 'string' },
     CURRENT_PID: { type: 'string' },
-    IGNORE_CHECKSUM: { type: 'boolean' }
+    IGNORE_CHECKSUM: { type: 'boolean' },
+    AUTO_START: { type: 'boolean' }
   },
   strict: true,
   allowPositionals: true
@@ -27,7 +28,8 @@ const {
   GITHUB_TOKEN,
   CURRENT_PID,
   SHA256_CHECKSUM,
-  IGNORE_CHECKSUM
+  IGNORE_CHECKSUM,
+  AUTO_START
 } = z
   .object({
     PUBLIC_URL: z.url().optional(),
@@ -36,7 +38,8 @@ const {
     CURRENT_BINARY_PATH: z.string(),
     CURRENT_PID: z.string(),
     SHA256_CHECKSUM: z.string(),
-    IGNORE_CHECKSUM: z.boolean().default(false)
+    IGNORE_CHECKSUM: z.boolean().default(false),
+    AUTO_START: z.boolean().default(false)
   })
   .parse(values);
 
@@ -62,6 +65,7 @@ debug('updater')(
   `SHA256_CHECKSUM: ${SHA256_CHECKSUM ? 'provided' : 'not provided'}`
 );
 debug('updater')(`IGNORE_CHECKSUM: ${IGNORE_CHECKSUM}`);
+debug('updater')(`AUTO_START: ${AUTO_START}`);
 
 const waitForTargetPidToExit = async (pid: number) => {
   for (let i = 0; i < 40; i++) {
@@ -192,17 +196,21 @@ debug('updater')(
 );
 await fs.rename(newBinaryPath, CURRENT_BINARY_PATH);
 
-// spawn the new binary
-debug('updater')(`Spawning new binary at path: ${CURRENT_BINARY_PATH}`);
-const child = Bun.spawn([CURRENT_BINARY_PATH], {
-  detached: true,
-  stdout: 'ignore',
-  stderr: 'ignore',
-  stdin: 'ignore'
-});
+if (AUTO_START) {
+  // spawn the new binary
+  debug('updater')(`Spawning new binary at path: ${CURRENT_BINARY_PATH}`);
+  const child = Bun.spawn([CURRENT_BINARY_PATH], {
+    detached: true,
+    stdout: 'ignore',
+    stderr: 'ignore',
+    stdin: 'ignore'
+  });
 
-// unref to let the updater exit independently
-child.unref();
+  // unref to let the updater exit independently
+  child.unref();
+
+  debug('updater')(`New binary started with PID: ${child.pid}`);
+}
 
 debug('updater')('Update process completed successfully. Exiting updater.');
 

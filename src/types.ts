@@ -29,6 +29,11 @@ type TOptions = {
   repoName: string;
   channel?: string;
   currentVersion?: string;
+  autoStart?: boolean;
+};
+
+type TOverrides = {
+  autoStart?: boolean;
 };
 
 type TAsset = {
@@ -46,4 +51,11 @@ type TRelease = {
 };
 
 export { ETarget, zArtifact, zRelease };
-export type { TArtifact, TAsset, TOptions, TRelease, TReleaseMetadata };
+export type {
+  TArtifact,
+  TAsset,
+  TOptions,
+  TOverrides,
+  TRelease,
+  TReleaseMetadata
+};

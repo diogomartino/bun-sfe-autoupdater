@@ -29,14 +29,21 @@ import { BunUpdater } from 'bun-sfe-autoupdater';
 const updater = new BunUpdater({
   repoOwner: 'your-username',
   repoName: 'your-repo',
-  currentVersion: '1.0.0' // or use process.env.CURRENT_VERSION
+  currentVersion: '1.0.0', // or use process.env.CURRENT_VERSION
+  autoStart: true // automatically spawns the app after update
 });
 
 // you can run this to check if updates are available eg: show a notification in the interface
 const hasUpdates = await updater.hasUpdates();
 
+// get latest version
+const latestVersion = await updater.getLatestVersion();
+
 // if updates are available, it will download and replace the running app with the new version
 await updater.checkForUpdates();
+
+// on checkForUpdates you can override certain options
+await updater.checkForUpdates({ autoStart: false }); // will not auto start after update
 ```
 
 ## Release Metadata Format

@@ -10,6 +10,7 @@ import {
 import {
   zRelease,
   type TOptions,
+  type TOverrides,
   type TRelease,
   type TReleaseMetadata
 } from './types';
@@ -20,15 +21,17 @@ class BunUpdater {
   private channel: string | undefined;
   private currentVersion: string;
   private isUpdating: boolean = false;
+  private autoStart: boolean = false;
 
   constructor(options: TOptions) {
     this.owner = options.repoOwner;
     this.repo = options.repoName;
     this.channel = options.channel;
     this.currentVersion = options.currentVersion || process.env.CURRENT_VERSION;
+    this.autoStart = options.autoStart ?? false;
 
     debug('updater')(
-      `Initialized BunUpdater for ${this.owner}/${this.repo} at version ${this.currentVersion}`
+      `Initialized BunUpdater for ${this.owner}/${this.repo} at version ${this.currentVersion}. Auto-start is ${this.autoStart ? 'enabled' : 'disabled'}.`
     );
 
     if (!semver.valid(this.currentVersion)) {
@@ -114,7 +117,7 @@ class BunUpdater {
     return hasCorrectArch && hasNewerVersion;
   };
 
-  public checkForUpdates = async () => {
+  public checkForUpdates = async (options?: TOverrides) => {
     if (this.isUpdating) {
       debug('updater')('Update already in progress, skipping...');
       return;
@@ -171,6 +174,10 @@ class BunUpdater {
       debug('updater')(`Downloading updater...`);
 
       const updaterPath = await downloadUpdater();
+      const autoStartValue =
+        typeof options?.autoStart === 'undefined'
+          ? this.autoStart
+          : options.autoStart;
 
       const args: Map<string, string> = new Map();
 
@@ -180,6 +187,8 @@ class BunUpdater {
       args.set('CURRENT_BINARY_PATH', process.execPath);
       args.set('CURRENT_PID', process.pid.toString());
       args.set('SHA256_CHECKSUM', targetArtifact.checksum);
+      args.set('IGNORE_CHECKSUM', process.env.IGNORE_CHECKSUM || 'false');
+      args.set('AUTO_START', autoStartValue.toString());
 
       const arrayArgs = Array.from(args.entries()).map(
         ([key, value]) => `--${key}=${value}`
