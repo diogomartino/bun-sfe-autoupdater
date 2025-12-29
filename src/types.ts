@@ -36,6 +36,7 @@ type TAsset = {
   browser_download_url: string;
   url: string;
   size: number;
+  digest: string;
 };
 
 type TRelease = {

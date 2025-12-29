@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import semver from 'semver';
+import { calculateSHA256 } from './sha256';
 import { ETarget, zRelease, type TAsset, type TRelease } from './types';
 
 const getGithubHeaders = (): Record<string, string> => {
@@ -111,20 +112,44 @@ const downloadUpdater = async () => {
 
   debug('updater')(`Found updater asset: ${updaterAsset.name}`);
 
-  const assetResponse = await downloadAsset(updaterAsset);
+  const assetChecksum = updaterAsset.digest.split(':').at(1);
   const tempUpdaterDir = path.join(os.tmpdir(), 'bun-sfe-autoupdater');
+  const updaterPath = path.join(tempUpdaterDir, updaterAsset.name);
 
-  debug('updater')(`Using temporary updater directory: ${tempUpdaterDir}`);
+  debug('updater')(`Asset checksum: ${assetChecksum}`);
+  debug('updater')(`Temporary updater directory: ${tempUpdaterDir}`);
+  debug('updater')(`Updater path: ${updaterPath}`);
+
+  // check if updater already exists
+  if (await fs.exists(updaterPath)) {
+    // calculate checksum of existing file
+    const existingFileChecksum = await calculateSHA256(updaterPath);
+
+    if (existingFileChecksum === assetChecksum) {
+      debug('updater')(
+        `Existing updater is up-to-date at path: ${updaterPath}`
+      );
+
+      return updaterPath;
+    } else {
+      debug('updater')(
+        `Existing updater is outdated or corrupted. Expected checksum: ${assetChecksum}, Existing checksum: ${existingFileChecksum}`
+      );
+
+      // remove existing file
+      debug('updater')(`Removing existing updater at path: ${updaterPath}`);
+
+      await fs.unlink(updaterPath);
+    }
+  }
+
+  const assetResponse = await downloadAsset(updaterAsset);
 
   if (!(await fs.exists(tempUpdaterDir))) {
     debug('updater')(`Creating temporary updater directory: ${tempUpdaterDir}`);
 
     await fs.mkdir(tempUpdaterDir, { recursive: true });
   }
-
-  const updaterPath = path.join(tempUpdaterDir, updaterAsset.name);
-
-  debug('updater')(`Downloading updater to path: ${updaterPath}`);
 
   if (await fs.exists(updaterPath)) {
     debug('updater')(`Removing existing updater at path: ${updaterPath}`);
@@ -135,11 +160,13 @@ const downloadUpdater = async () => {
   const arrayBuffer = await assetResponse.arrayBuffer();
 
   debug('updater')(`Writing updater binary to path: ${updaterPath}`);
+
   await fs.writeFile(updaterPath, new Uint8Array(arrayBuffer));
 
   debug('updater')(
     `Setting executable permissions for updater at path: ${updaterPath}`
   );
+
   await fs.chmod(updaterPath, 0o755);
 
   return updaterPath;
