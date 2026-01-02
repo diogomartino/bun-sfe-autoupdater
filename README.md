@@ -33,7 +33,8 @@ const updater = new BunUpdater({
   repoOwner: 'your-username',
   repoName: 'your-repo',
   currentVersion: '1.0.0', // or use process.env.CURRENT_VERSION
-  autoStart: true // automatically spawns the app after update
+  autoStart: true, // automatically spawns the app after update
+  ignoreChecksum: false // set to true to skip checksum verification
 });
 
 // you can run this to check if updates are available eg: show a notification in the interface

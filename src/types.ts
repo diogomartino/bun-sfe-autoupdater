@@ -30,6 +30,7 @@ type TOptions = {
   channel?: string;
   currentVersion?: string;
   autoStart?: boolean;
+  ignoreChecksum?: boolean;
 };
 
 type TOverrides = {

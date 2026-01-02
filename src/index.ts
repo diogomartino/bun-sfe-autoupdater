@@ -22,6 +22,7 @@ class BunUpdater {
   private currentVersion: string;
   private isUpdating: boolean = false;
   private autoStart: boolean = false;
+  private ignoreChecksum: boolean = false;
 
   constructor(options: TOptions) {
     this.owner = options.repoOwner;
@@ -29,6 +30,7 @@ class BunUpdater {
     this.channel = options.channel;
     this.currentVersion = options.currentVersion || process.env.CURRENT_VERSION;
     this.autoStart = options.autoStart ?? false;
+    this.ignoreChecksum = options.ignoreChecksum ?? false;
 
     debug('updater')(
       `Initialized BunUpdater for ${this.owner}/${this.repo} at version ${this.currentVersion}. Auto-start is ${this.autoStart ? 'enabled' : 'disabled'}.`
@@ -179,26 +181,26 @@ class BunUpdater {
           ? this.autoStart
           : options.autoStart;
 
-      const args: Map<string, string> = new Map();
+      const args = [];
 
-      args.set('PUBLIC_URL', targetAsset.browser_download_url);
-      args.set('PRIVATE_URL', targetAsset.url);
-      args.set('GITHUB_TOKEN', process.env.GITHUB_TOKEN || '');
-      args.set('CURRENT_BINARY_PATH', process.execPath);
-      args.set('CURRENT_PID', process.pid.toString());
-      args.set('SHA256_CHECKSUM', targetArtifact.checksum);
-      args.set('IGNORE_CHECKSUM', process.env.IGNORE_CHECKSUM || 'false');
-      args.set('AUTO_START', autoStartValue.toString());
+      args.push(`--CURRENT_BINARY_PATH=${process.execPath}`);
+      args.push(`--PUBLIC_URL=${targetAsset.browser_download_url}`);
+      args.push(`--PRIVATE_URL=${targetAsset.url}`);
+      args.push(`--GITHUB_TOKEN=${process.env.GITHUB_TOKEN || ''}`);
+      args.push(`--CURRENT_PID=${process.pid.toString()}`);
+      args.push(`--SHA256_CHECKSUM=${targetArtifact.checksum}`);
 
-      const arrayArgs = Array.from(args.entries()).map(
-        ([key, value]) => `--${key}=${value}`
-      );
+      if (this.ignoreChecksum) {
+        args.push('--IGNORE_CHECKSUM');
+      }
 
-      debug('updater')(
-        `Spawning updater process with args: ${arrayArgs.join(' ')}`
-      );
+      if (autoStartValue) {
+        args.push('--AUTO_START');
+      }
 
-      const updaterProcess = Bun.spawn([updaterPath, ...arrayArgs], {
+      debug('updater')(`Spawning updater process with args: ${args.join(' ')}`);
+
+      const updaterProcess = Bun.spawn([updaterPath, ...args], {
         stdout: 'inherit',
         stderr: 'inherit',
         detached: true
