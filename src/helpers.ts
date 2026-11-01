@@ -1,3 +1,4 @@
+import { dlopen, FFIType } from 'bun:ffi';
 import debug from 'debug';
 import fs from 'fs/promises';
 import { ETarget, zRelease, type TAsset } from './types';
@@ -103,8 +104,16 @@ const relaunch = () => {
     return;
   }
 
-  const child = Bun.spawn([process.execPath, ...process.argv.slice(2)], {
-    env: { ...process.env, [PARENT_PID_ENV]: String(process.pid) },
+  const args = [process.execPath, ...process.argv.slice(2)];
+  const env = { ...process.env, [PARENT_PID_ENV]: String(process.pid) };
+
+  if (process.platform === 'win32') {
+    log(`Relaunched with PID: ${spawnWithoutInheritance(args, env)}`);
+    return;
+  }
+
+  const child = Bun.spawn(args, {
+    env,
     stdio: ['ignore', 'inherit', 'inherit'],
     detached: true
   });
@@ -112,6 +121,77 @@ const relaunch = () => {
   child.unref();
 
   log(`Relaunched with PID: ${child.pid}`);
+};
+
+const quoteWindowsArg = (arg: string) =>
+  arg && !/[\s"]/.test(arg)
+    ? arg
+    : `"${arg.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\*)$/, '$1$1')}"`;
+
+const spawnWithoutInheritance = (
+  args: string[],
+  env: Record<string, string | undefined>
+) => {
+  const { symbols } = dlopen('kernel32.dll', {
+    CreateProcessW: {
+      args: [
+        'ptr',
+        'ptr',
+        'ptr',
+        'ptr',
+        'i32',
+        'u32',
+        'ptr',
+        'ptr',
+        'ptr',
+        'ptr'
+      ],
+      returns: FFIType.i32
+    },
+    CloseHandle: { args: ['u64'], returns: FFIType.i32 },
+    GetLastError: { args: [], returns: FFIType.u32 }
+  });
+
+  const wide = (text: string) => Buffer.from(`${text}\0`, 'utf16le');
+  const envBlock = Object.entries(env)
+    .filter(([, value]) => value !== undefined)
+    .sort(([a], [b]) => (a.toUpperCase() < b.toUpperCase() ? -1 : 1))
+    .map(([key, value]) => `${key}=${value}\0`)
+    .join('');
+
+  const startupInfo = new Uint8Array(104); // STARTUPINFOW on x64
+  const processInfo = new Uint8Array(24); // PROCESS_INFORMATION on x64
+  new DataView(startupInfo.buffer).setUint32(0, startupInfo.length, true);
+
+  const DETACHED_PROCESS = 0x8;
+  const CREATE_NEW_PROCESS_GROUP = 0x200;
+  const CREATE_UNICODE_ENVIRONMENT = 0x400;
+
+  const ok = symbols.CreateProcessW(
+    wide(args[0]!),
+    wide(args.map(quoteWindowsArg).join(' ')),
+    null,
+    null,
+    0,
+    DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_UNICODE_ENVIRONMENT,
+    wide(envBlock),
+    wide(process.cwd()),
+    startupInfo,
+    processInfo
+  );
+
+  if (!ok) {
+    throw new Error(
+      `CreateProcessW failed with error ${symbols.GetLastError()}`
+    );
+  }
+
+  const info = new DataView(processInfo.buffer);
+
+  symbols.CloseHandle(info.getBigUint64(0, true));
+  symbols.CloseHandle(info.getBigUint64(8, true));
+
+  return info.getUint32(16, true);
 };
 
 const waitForParentExit = () => {

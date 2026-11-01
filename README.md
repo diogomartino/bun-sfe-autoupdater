@@ -22,8 +22,10 @@ available for the current platform, it:
    register one, it must end with `process.exit()`.
 
 The relaunched app gets the same arguments, working directory, environment,
-stdout and stderr. It waits for the previous instance to fully exit before your
-code runs, so ports and file locks are free.
+stdout and stderr (on Windows, no stdout/stderr: it is started without
+inheriting handles, so it doesn't inherit the old instance's sockets). It waits
+for the previous instance to fully exit before your code runs, so ports and file
+locks are free.
 
 The GitHub release must include a `release.json` file that describes the release
 metadata, including version, release date, and available artifacts for different

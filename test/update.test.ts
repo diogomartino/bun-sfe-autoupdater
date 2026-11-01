@@ -104,12 +104,15 @@ const setup = async () => {
   return { dir, app, env, readLog };
 };
 
+// awkward on purpose: windows rebuilds the command line from these
+const args = ['--flag', 'two words', 'say "hi"', 'C:\\my dir\\', ''];
+
 test('updates, shuts down gracefully and relaunches with the same args and cwd', async () => {
   checksum = new Bun.CryptoHasher('sha256').update(v2Bytes).digest('hex');
   const { dir, app, env, readLog } = await setup();
 
   const output = Bun.file(path.join(dir, 'output.txt'));
-  const v1 = Bun.spawn([app, '--flag', 'two words'], {
+  const v1 = Bun.spawn([app, ...args], {
     cwd: dir,
     env: { ...env, TEST_AUTOSTART: '1', DEBUG: 'updater' },
     stdio: ['ignore', output, output]
@@ -122,9 +125,9 @@ test('updates, shuts down gracefully and relaunches with the same args and cwd',
   }
 
   expect((await readLog()).split('\n')).toEqual([
-    `v1.0.0 ["--flag","two words"] ${dir}`,
+    `v1.0.0 ${JSON.stringify(args)} ${dir}`,
     'graceful shutdown',
-    `v2.0.0 ["--flag","two words"] ${dir}`,
+    `v2.0.0 ${JSON.stringify(args)} ${dir}`,
     ''
   ]);
   expect(await Bun.file(app).bytes()).toEqual(v2Bytes);
