@@ -11,8 +11,19 @@ seamlessly update your standalone Bun applications from GitHub releases.
 This library exposes the `BunUpdater` class, which you can instantiate with your
 GitHub repository information. The updater checks for new releases by fetching a
 `release.json` file from the latest GitHub release assets. If a newer version is
-available for the current platform, it downloads the corresponding binary and
-replaces the running application with the new version.
+available for the current platform, it:
+
+1. downloads the new binary next to the running one (`<app>.new`) and verifies
+   its SHA-256 checksum,
+2. swaps the files with two renames (the previous binary is kept as
+   `<app>.old`),
+3. sends `SIGTERM` to the app, relaunching the new binary first when `autoStart`
+   is on. Your `SIGTERM` handlers run, so you can shut down gracefully; if you
+   register one, it must end with `process.exit()`.
+
+The relaunched app gets the same arguments, working directory, environment,
+stdout and stderr. It waits for the previous instance to fully exit before your
+code runs, so ports and file locks are free.
 
 The GitHub release must include a `release.json` file that describes the release
 metadata, including version, release date, and available artifacts for different
@@ -43,7 +54,7 @@ const hasUpdates = await updater.hasUpdates();
 // get latest version
 const latestVersion = await updater.getLatestVersion();
 
-// if updates are available, it will download and replace the running app with the new version
+// if updates are available, it replaces the binary and sends SIGTERM to the app (relaunching it if autoStart is on)
 await updater.checkForUpdates();
 
 // on checkForUpdates you can override certain options
@@ -134,16 +145,19 @@ const updater = new BunUpdater({
 The updater will look for `release-beta.json` instead of `release.json` in the
 release artifacts.
 
-## Private Repositories
+## Running Under a Service Manager
 
-For private repositories, set the `GITHUB_TOKEN` environment variable:
+`checkForUpdates()` replaces the binary and terminates the app with `SIGTERM`,
+so the manager has to restart it.
 
-```bash
-GITHUB_TOKEN=ghp_your_token_here bun run myapp
-```
+- **systemd**: use `Restart=always` (`on-failure` does not restart, since
+  systemd treats `SIGTERM` as a clean exit). `autoStart` is skipped
+  automatically when the app is the service's main process, because systemd
+  would kill the relaunched process anyway.
+- **Docker, pm2, etc.**: set `autoStart: false` and use the manager's restart
+  policy (e.g. `--restart unless-stopped`).
 
-The updater will automatically use the token for authentication when accessing
-private repos.
+The directory containing the binary must be writable by the app's user.
 
 ## License
 

@@ -16,6 +16,8 @@ const getCurrentVersion = async () => {
 const version = await getCurrentVersion();
 
 console.log(`Building library version: ${version}`);
+
+await fs.rm(distPath, { recursive: true, force: true });
 console.log('Generating TypeScript declarations...');
 
 const tscProcess = Bun.spawn(
@@ -38,14 +40,12 @@ console.log('Bundling with Bun...');
 
 const buildResult = await Bun.build({
   entrypoints: [indexPath],
-  target: 'node',
+  target: 'bun',
   outdir: distPath,
   format: 'esm',
   minify: false,
   sourcemap: 'external',
-  define: {
-    UPDATER_LIB_VERSION: `"${version}"`
-  }
+  external: ['debug', 'semver', 'zod']
 });
 
 if (!buildResult.success) {

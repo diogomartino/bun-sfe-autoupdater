@@ -1,3 +1,4 @@
+import semver from 'semver';
 import z from 'zod';
 
 enum ETarget {
@@ -16,7 +17,7 @@ const zArtifact = z.object({
 });
 
 const zRelease = z.object({
-  version: z.string(),
+  version: z.string().refine((v) => semver.valid(v), 'Must be valid semver'),
   releaseDate: z.string(),
   artifacts: z.array(zArtifact)
 });

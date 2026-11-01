@@ -1,10 +1,10 @@
 import debug from 'debug';
 import fs from 'fs/promises';
-import os from 'os';
-import path from 'path';
-import semver from 'semver';
-import { calculateSHA256 } from './sha256';
-import { ETarget, zRelease, type TAsset, type TRelease } from './types';
+import { ETarget, zRelease, type TAsset } from './types';
+
+const log: (message: string) => void = debug('updater');
+
+const PARENT_PID_ENV = 'BUN_SFE_UPDATER_PARENT_PID';
 
 const getGithubHeaders = (): Record<string, string> => {
   const headers: Record<string, string> = {
@@ -20,156 +20,27 @@ const getGithubHeaders = (): Record<string, string> => {
 };
 
 const downloadAsset = async (asset: TAsset) => {
-  let releaseJsonResponse: Response;
+  let response: Response;
 
   if (process.env.GITHUB_TOKEN) {
-    debug('updater')(
-      `Fetching asset with github authentication... ${asset.name}`
-    );
+    log(`Fetching asset with github authentication... ${asset.name}`);
 
-    // it's a private repo: use API endpoint with authentication
-    releaseJsonResponse = await fetch(asset.url, {
+    response = await fetch(asset.url, {
       headers: { ...getGithubHeaders(), Accept: 'application/octet-stream' }
     });
   } else {
-    debug('updater')(
-      `Fetching asset without github authentication... ${asset.name}`
-    );
+    log(`Fetching asset without github authentication... ${asset.name}`);
 
-    // it's a public repo: use browser download URL (no auth needed)
-    releaseJsonResponse = await fetch(asset.browser_download_url);
+    response = await fetch(asset.browser_download_url);
   }
-
-  if (!releaseJsonResponse.ok) {
-    throw new Error(
-      `Error fetching release.json: ${releaseJsonResponse.status} ${releaseJsonResponse.statusText}`
-    );
-  }
-
-  return releaseJsonResponse;
-};
-
-const getLibVersion = async (): Promise<string> => {
-  const version =
-    typeof UPDATER_LIB_VERSION !== 'undefined'
-      ? UPDATER_LIB_VERSION
-      : undefined;
-
-  if (!version) {
-    throw new Error('UPDATER_LIB_VERSION is not defined.');
-  }
-
-  if (!semver.valid(version)) {
-    throw new Error(
-      `Invalid lib version: ${version}. Must be a valid semver string.`
-    );
-  }
-
-  return version;
-};
-
-const downloadUpdater = async () => {
-  const updaterOwner = process.env.UPDATER_REPO_OWNER || 'diogomartino';
-  const updaterRepo = process.env.UPDATER_REPO_NAME || 'bun-sfe-autoupdater';
-
-  debug('updater')(`Using updater repo: ${updaterOwner}/${updaterRepo}`);
-
-  const targetVersion = await getLibVersion();
-
-  debug('updater')(`Target updater version: ${targetVersion}`);
-
-  const url = `https://api.github.com/repos/${updaterOwner}/${updaterRepo}/releases/tags/v${targetVersion}`;
-
-  debug('updater')(`Fetching latest updater release info from ${url}`);
-
-  const response = await fetch(url, {
-    headers: getGithubHeaders()
-  });
 
   if (!response.ok) {
     throw new Error(
-      `Error fetching updater releases: ${response.status} ${response.statusText}`
+      `Error fetching ${asset.name}: ${response.status} ${response.statusText}`
     );
   }
 
-  const release = (await response.json()) as TRelease;
-
-  debug('updater')(`Latest updater release version: ${release.tag_name}`);
-
-  const currentArchitecture = getCurrentArchitecture();
-
-  debug('updater')(`Current architecture: ${currentArchitecture}`);
-
-  const updaterAsset = release.assets.find((asset) =>
-    asset.name.includes(currentArchitecture)
-  );
-
-  if (!updaterAsset) {
-    throw new Error(
-      `No updater asset found for architecture: ${currentArchitecture}`
-    );
-  }
-
-  debug('updater')(`Found updater asset: ${updaterAsset.name}`);
-
-  const assetChecksum = updaterAsset.digest.split(':').at(1);
-  const tempUpdaterDir = path.join(os.tmpdir(), 'bun-sfe-autoupdater');
-  const updaterPath = path.join(tempUpdaterDir, updaterAsset.name);
-
-  debug('updater')(`Asset checksum: ${assetChecksum}`);
-  debug('updater')(`Temporary updater directory: ${tempUpdaterDir}`);
-  debug('updater')(`Updater path: ${updaterPath}`);
-
-  // check if updater already exists
-  if (await fs.exists(updaterPath)) {
-    // calculate checksum of existing file
-    const existingFileChecksum = await calculateSHA256(updaterPath);
-
-    if (existingFileChecksum === assetChecksum) {
-      debug('updater')(
-        `Existing updater is up-to-date at path: ${updaterPath}`
-      );
-
-      return updaterPath;
-    } else {
-      debug('updater')(
-        `Existing updater is outdated or corrupted. Expected checksum: ${assetChecksum}, Existing checksum: ${existingFileChecksum}`
-      );
-
-      // remove existing file
-      debug('updater')(`Removing existing updater at path: ${updaterPath}`);
-
-      await fs.unlink(updaterPath);
-    }
-  }
-
-  const assetResponse = await downloadAsset(updaterAsset);
-
-  if (!(await fs.exists(tempUpdaterDir))) {
-    debug('updater')(`Creating temporary updater directory: ${tempUpdaterDir}`);
-
-    await fs.mkdir(tempUpdaterDir, { recursive: true });
-  }
-
-  if (await fs.exists(updaterPath)) {
-    debug('updater')(`Removing existing updater at path: ${updaterPath}`);
-
-    await fs.unlink(updaterPath);
-  }
-
-  const arrayBuffer = await assetResponse.arrayBuffer();
-
-  debug('updater')(`Writing updater binary to path: ${updaterPath}`);
-
-  await fs.writeFile(updaterPath, new Uint8Array(arrayBuffer));
-
-  debug('updater')(
-    `Setting executable permissions for updater at path: ${updaterPath}`
-  );
-
-  await fs.chmod(updaterPath, 0o755);
-
-  return updaterPath;
+  return response;
 };
 
 const getCurrentArchitecture = (): ETarget => {
@@ -185,14 +56,97 @@ const getCurrentArchitecture = (): ETarget => {
   throw new Error(`Unsupported platform or architecture: ${platform}-${arch}`);
 };
 
-const validateReleaseMetadata = (releaseMetadata: any) =>
+const isStandaloneBinary = () =>
+  Bun.main.startsWith('/$bunfs/') || /^[a-z]:[\\/]~BUN[\\/]/i.test(Bun.main);
+
+const installUpdate = async (asset: TAsset, checksum: string | undefined) => {
+  const target = process.execPath;
+  const newPath = `${target}.new`;
+  const oldPath = `${target}.old`;
+
+  const bytes = new Uint8Array(
+    await (await downloadAsset(asset)).arrayBuffer()
+  );
+
+  if (checksum) {
+    const actual = new Bun.CryptoHasher('sha256').update(bytes).digest('hex');
+
+    if (actual !== checksum.toLowerCase()) {
+      throw new Error(
+        `Checksum verification failed. Expected: ${checksum}, Got: ${actual}`
+      );
+    }
+  } else {
+    log('Ignoring checksum verification');
+  }
+
+  log(`Writing new binary to ${newPath}`);
+  await fs.writeFile(newPath, bytes);
+  await fs.chmod(newPath, 0o755);
+
+  await fs.rm(oldPath, { force: true });
+  await fs.rename(target, oldPath);
+
+  try {
+    await fs.rename(newPath, target);
+  } catch (error) {
+    await fs.rename(oldPath, target);
+    throw error;
+  }
+
+  log(`Replaced ${target}`);
+};
+
+const relaunch = () => {
+  if (process.env.SYSTEMD_EXEC_PID === String(process.pid)) {
+    log('Running as a systemd service, leaving the restart to systemd');
+    return;
+  }
+
+  const child = Bun.spawn([process.execPath, ...process.argv.slice(2)], {
+    env: { ...process.env, [PARENT_PID_ENV]: String(process.pid) },
+    stdio: ['ignore', 'inherit', 'inherit'],
+    detached: true
+  });
+
+  child.unref();
+
+  log(`Relaunched with PID: ${child.pid}`);
+};
+
+const waitForParentExit = () => {
+  const pid = Number(process.env[PARENT_PID_ENV]);
+
+  if (!pid) return;
+
+  delete process.env[PARENT_PID_ENV];
+
+  const deadline = Date.now() + 10_000;
+
+  while (Date.now() < deadline) {
+    try {
+      process.kill(pid, 0);
+    } catch {
+      return;
+    }
+
+    Bun.sleepSync(50);
+  }
+
+  log(`Previous instance ${pid} still alive after 10s, continuing anyway`);
+};
+
+const validateReleaseMetadata = (releaseMetadata: unknown) =>
   zRelease.parse(releaseMetadata);
 
 export {
   downloadAsset,
-  downloadUpdater,
   getCurrentArchitecture,
   getGithubHeaders,
-  getLibVersion,
-  validateReleaseMetadata
+  installUpdate,
+  isStandaloneBinary,
+  log,
+  relaunch,
+  validateReleaseMetadata,
+  waitForParentExit
 };

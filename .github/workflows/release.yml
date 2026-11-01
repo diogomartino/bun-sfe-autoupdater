@@ -1,11 +1,16 @@
-name: Release Updater
+name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump
+        type: choice
+        options: [none, patch, minor, major]
+        default: none
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   build-and-publish:
@@ -17,23 +22,51 @@ jobs:
       - name: Install Bun
         uses: oven-sh/setup-bun@v1
         with:
-          bun-version: 1.3.0
+          bun-version: 1.3.14
+
+      - name: Setup Node (for npm publish)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
-      - name: Build app
-        run: |
-          bun run build:updater
+      - name: Test
+        run: bun test
+
+      - name: Bump version
+        if: inputs.bump != 'none'
+        run: npm version ${{ inputs.bump }} --no-git-tag-version
+
+      - name: Build library
+        run: bun run build:lib
 
       - name: Get version from package.json
         id: get_version
-        run: echo "::set-output name=version::$(jq -r .version package.json)"
+        run: echo "version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Identify user
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit version bump
+        if: inputs.bump != 'none'
+        run: |
+          git commit -am "v${{ steps.get_version.outputs.version }}"
+          git push origin HEAD:${{ github.ref_name }}
+
+      - name: Create Git tag
+        run: |
+          git tag -a "v${{ steps.get_version.outputs.version }}" -m "Release v${{ steps.get_version.outputs.version }}"
+          git push origin "v${{ steps.get_version.outputs.version }}"
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
@@ -41,17 +74,6 @@ jobs:
           tag_name: v${{ steps.get_version.outputs.version }}
           name: v${{ steps.get_version.outputs.version }}
           draft: true
-          files: |
-            build/out/updater-linux-x64
-            build/out/updater-linux-arm64
-            build/out/updater-windows-x64.exe
-            build/out/updater-macos-x64
-            build/out/updater-macos-arm64
           body: |
             ## Changes
             (TODO)
-
-      - name: Create Git tag
-        run: |
-          git tag -a "v${{ steps.get_version.outputs.version }}" -m "Release v${{ steps.get_version.outputs.version }}"
-          git push origin "v${{ steps.get_version.outputs.version }}"
