@@ -108,13 +108,18 @@ test('updates, shuts down gracefully and relaunches with the same args and cwd',
   checksum = new Bun.CryptoHasher('sha256').update(v2Bytes).digest('hex');
   const { dir, app, env, readLog } = await setup();
 
+  const output = Bun.file(path.join(dir, 'output.txt'));
   const v1 = Bun.spawn([app, '--flag', 'two words'], {
     cwd: dir,
-    env: { ...env, TEST_AUTOSTART: '1' },
-    stdio: ['ignore', 'ignore', 'ignore']
+    env: { ...env, TEST_AUTOSTART: '1', DEBUG: 'updater' },
+    stdio: ['ignore', output, output]
   });
   await v1.exited;
   await waitFor(async () => (await readLog()).includes('v2.0.0'));
+
+  if (!(await readLog()).includes('v2.0.0')) {
+    console.log(`v1 exit code: ${v1.exitCode}\n${await output.text()}`);
+  }
 
   expect((await readLog()).split('\n')).toEqual([
     `v1.0.0 ["--flag","two words"] ${dir}`,

@@ -7,6 +7,7 @@ import {
   isStandaloneBinary,
   log,
   relaunch,
+  terminate,
   validateReleaseMetadata,
   waitForParentExit
 } from './helpers';
@@ -146,7 +147,7 @@ class BunUpdater {
       relaunch();
     }
 
-    process.kill(process.pid, 'SIGTERM');
+    terminate();
   };
 }
 

@@ -136,6 +136,16 @@ const waitForParentExit = () => {
   log(`Previous instance ${pid} still alive after 10s, continuing anyway`);
 };
 
+const terminate = () => {
+  if (process.platform !== 'win32') {
+    process.kill(process.pid, 'SIGTERM');
+  } else if (process.listenerCount('SIGTERM') > 0) {
+    process.emit('SIGTERM', 'SIGTERM');
+  } else {
+    process.exit(0);
+  }
+};
+
 const validateReleaseMetadata = (releaseMetadata: unknown) =>
   zRelease.parse(releaseMetadata);
 
@@ -147,6 +157,7 @@ export {
   isStandaloneBinary,
   log,
   relaunch,
+  terminate,
   validateReleaseMetadata,
   waitForParentExit
 };
