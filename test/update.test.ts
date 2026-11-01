@@ -201,7 +201,7 @@ test.skipIf(!hasUserSystemd)(
     const pass = (name: 'TEST_API' | 'TEST_LOG' | 'TEST_PORT') =>
       `--setenv=${name}=${env[name]}`;
 
-    Bun.spawnSync([
+    const run = Bun.spawnSync([
       'systemd-run',
       '--user',
       '--quiet',
@@ -213,11 +213,22 @@ test.skipIf(!hasUserSystemd)(
       pass('TEST_LOG'),
       pass('TEST_PORT'),
       '--setenv=TEST_AUTOSTART=1',
+      '--setenv=DEBUG=updater',
       app
     ]);
 
+    expect(run.stderr.toString()).toBe('');
+
     try {
       await waitFor(async () => (await readLog()).includes('v2.0.0'));
+
+      if (!(await readLog()).includes('v2.0.0')) {
+        const status = ['systemctl', '--user', 'status', '--no-pager', unit];
+        const journal = ['journalctl', '--user', '--no-pager', '-u', unit];
+
+        console.log(Bun.spawnSync(status).stdout.toString());
+        console.log(Bun.spawnSync(journal).stdout.toString());
+      }
     } finally {
       Bun.spawnSync(['systemctl', '--user', 'stop', unit]);
     }
